@@ -14,24 +14,39 @@ SYSTEM_PROMPT = (
 )
 
 
-def run_agent(messages: list) -> str:
+def run_agent(messages: list) -> None:
+    """Roda o loop do agente imprimindo a resposta em streaming."""
     for _ in range(MAX_STEPS):
-        response = client.messages.create(
+        # 1. Abre o stream e imprime cada pedaço de texto assim que chega
+        with client.messages.stream(
             model=MODEL,
             max_tokens=1024,
             system=SYSTEM_PROMPT,
             tools=TOOL_DEFINITIONS,
             messages=messages,
-        )
+        ) as stream:
+            for text in stream.text_stream:
+                print(text, end="", flush=True)
+
+            # 2. Quando o stream termina, pega a mensagem completa
+            response = stream.get_final_message()
+
+            print(
+            f"\n  [uso] entrada: {response.usage.input_tokens} | "
+            f"saída: {response.usage.output_tokens} tokens",
+            end="",
+            )
 
         # Guarda a resposta do modelo no histórico
         messages.append({"role": "assistant", "content": response.content})
 
         # Se não pediu ferramenta, é a resposta final
         if response.stop_reason != "tool_use":
-            return "".join(b.text for b in response.content if b.type == "text")
+            print()  # quebra de linha ao final
+            return
 
-        # Executa cada ferramenta pedida
+        # Se chegou aqui, o modelo pediu ferramentas
+        print()  # separa o texto parcial do log das ferramentas
         results = []
         for block in response.content:
             if block.type != "tool_use":
@@ -59,20 +74,28 @@ def run_agent(messages: list) -> str:
         # Devolve os resultados ao modelo e repete o loop
         messages.append({"role": "user", "content": results})
 
-    return "Atingi o limite de passos sem concluir a tarefa."
+    print("\nAtingi o limite de passos sem concluir a tarefa.")
 
 
 def main():
     messages = []
     print("Agente pronto! Digite 'sair' para encerrar.\n")
     while True:
-        user_input = input("Você: ").strip()
+        try:
+            user_input = input("Você: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nAté logo!")
+            break
+
         if user_input.lower() in ("sair", "exit"):
             break
         if not user_input:
             continue
+
         messages.append({"role": "user", "content": user_input})
-        print(f"Agente: {run_agent(messages)}\n")
+        print("Agente: ", end="", flush=True)
+        run_agent(messages)
+        print()
 
 
 if __name__ == "__main__":

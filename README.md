@@ -9,3 +9,5 @@ Projeto de estudo: construindo um agente de IA do zero.
 
 ## Diário de evolução
 - **v0.1** – Loop básico + ferramentas de hora e notas
+- **v0.2** – Streaming: a resposta aparece em tempo real (`messages.stream`);
+  tratamento de Ctrl+C no chat
